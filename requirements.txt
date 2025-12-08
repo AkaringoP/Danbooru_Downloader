@@ -1,0 +1,6 @@
+customtkinter
+requests
+pillow
+packaging
+python-dotenv
+cryptography

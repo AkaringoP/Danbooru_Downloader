@@ -1,0 +1,16 @@
+.env
+.secret.key
+__pycache__/
+*.pyc
+.danbooru_cache/
+venv/
+env/
+*.log
+.DS_Store
+dist/
+build/
+*.spec
+convert_icon.py
+icon.ico
+*.png
+search_history.json
