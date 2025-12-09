@@ -1459,6 +1459,9 @@ class App(ctk.CTk):
         while True:
             if self.downloader.stop_event.is_set(): break
             
+            # Wait if paused (blocks here until resumed)
+            self.downloader.pause_event.wait()
+            
             self.after(0, lambda p=page, c=downloaded_count: self.bulk_download_btn.configure(text=f"Downloading ({c})"))
             self.after(0, lambda p=page, c=downloaded_count: self.progress_label.configure(text=f"Page: {p} | Downloaded: {c}"))
             
