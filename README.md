@@ -7,7 +7,10 @@ A modern, high-performance desktop application for searching and downloading ima
 ## Key Features
 
 -   **Modern UI**: Clean, dark-themed interface built with `customtkinter`.
--   **Secure**: Encrypted storage for API credentials.
+-   **Advanced Security**:
+    -   **Credential Protection**: API keys and personal info are encrypted using **Windows Credential Locker** (via `keyring`).
+    -   **Privacy-First Cache**: Thumnnail cache files are **obfuscated** (hashed filenames + XOR-scrambled headers) to prevent viewing in Windows Explorer.
+    -   **Config Encryption**: Sensitive settings in `.env` (Download Path, Safe Search) are fully encrypted.
 -   **Smart Search**:
     -   Incremental rendering for instant search feedback.
     -   Visual tag display with organized metadata (Artist, Copyright, Character, General).
@@ -15,9 +18,9 @@ A modern, high-performance desktop application for searching and downloading ima
 -   **High Performance**:
     -   Multi-threaded downloading with customizable concurrency.
     -   Optimized scroll performance with widget flattening.
-    -   Fast local caching system for thumbnails.
+    -   **Bulk optimized**: "Download All" implicitly maximizes valid API requests (100 posts/page).
 -   **Convenience**:
-    -   "Download All" with query validation.
+    -   **Input Validation**: Strict checking for settings (e.g., Post Limits capped at 30 for UI smoothness).
     -   "Don't ask again" confirmation setting.
     -   Pause/Resume downloads.
     -   Direct file viewer integration.

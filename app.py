@@ -18,15 +18,18 @@ ctk.set_default_color_theme("blue")
 import json
 
 class ResumeManager:
-    def __init__(self, download_path):
+    def __init__(self, download_path, security_manager):
         self.file_path = os.path.join(download_path, ".danbooru_resume.json")
+        self.security = security_manager
         self.state = self.load()
 
     def load(self):
         if os.path.exists(self.file_path):
             try:
                 with open(self.file_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    encrypted_data = f.read()
+                    decrypted_data = self.security.decrypt(encrypted_data)
+                    return json.loads(decrypted_data)
             except:
                 pass
         return {}
@@ -40,8 +43,10 @@ class ResumeManager:
             "updated_at": str(os.path.getmtime(self.file_path)) if os.path.exists(self.file_path) else None
         }
         try:
+            json_str = json.dumps(data, indent=2)
+            encrypted_data = self.security.encrypt(json_str)
             with open(self.file_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
+                f.write(encrypted_data)
         except Exception as e:
             print(f"Error saving resume state: {e}")
 
@@ -176,11 +181,10 @@ class PostFrame(ctk.CTkFrame):
     def _download_thumbnail(self):
         try:
             # Check cache first
-            cached_path = self.cache.get(self.id)
-            if cached_path:
-                img = Image.open(cached_path)
-                img.thumbnail((100, 100))
-                ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=img.size)
+            cached_img = self.cache.load(self.id)
+            if cached_img:
+                cached_img.thumbnail((100, 100))
+                ctk_img = ctk.CTkImage(light_image=cached_img, dark_image=cached_img, size=cached_img.size)
                 self.after(0, lambda: self._update_thumb_ui(ctk_img))
                 if self.on_load_finish: self.after(0, self.on_load_finish)
                 return
@@ -447,7 +451,7 @@ class SettingsDialog(ctk.CTkToplevel):
         self.browse_btn.grid(row=3, column=2, padx=10, pady=10)
 
         # Post Limit
-        ctk.CTkLabel(self, text="Post Limit (Max 100):").grid(row=4, column=0, padx=10, pady=10, sticky="w")
+        ctk.CTkLabel(self, text="Post Limit (Max 30):").grid(row=4, column=0, padx=10, pady=10, sticky="w")
         self.limit_entry = ctk.CTkEntry(self)
         self.limit_entry.grid(row=4, column=1, padx=10, pady=10, sticky="ew")
         self.limit_entry.insert(0, str(current_limit))
@@ -477,7 +481,11 @@ class SettingsDialog(ctk.CTkToplevel):
         self.concurrency_entry = ctk.CTkEntry(self)
         self.concurrency_entry.grid(row=8, column=1, padx=10, pady=10, sticky="ew")
         # Default to 8 if not passed (we will update App to pass it)
-        self.concurrency_entry.insert(0, str(getattr(self.parent, 'max_workers', 8)))
+        try:
+            current_max_workers = self.parent.max_workers
+        except:
+            current_max_workers = 8
+        self.concurrency_entry.insert(0, str(current_max_workers))
         
         self.skip_download_confirmation = os.getenv("DANBOORU_SKIP_CONFIRMATION", "False").lower() == "true"
 
@@ -494,6 +502,62 @@ class SettingsDialog(ctk.CTkToplevel):
         self.transient(parent)
         # self.grab_set() # Removed to allow closing main app
         self.focus_force()
+
+        # Input Validation Bindings
+        self.email_entry.bind("<FocusOut>", self.validate_email)
+        self.limit_entry.bind("<FocusOut>", self.validate_limit)
+        self.cache_days_entry.bind("<FocusOut>", self.validate_cache_days)
+        self.cache_size_entry.bind("<FocusOut>", self.validate_cache_size)
+        self.concurrency_entry.bind("<FocusOut>", self.validate_concurrency)
+
+    def validate_email(self, event=None):
+        value = self.email_entry.get().strip()
+        if not value: return # Allow empty (defaults to unknown)
+        # Simple regex for email format
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", value):
+            tkinter.messagebox.showwarning("Invalid Input", "Please enter a valid email address.")
+            self.email_entry.focus_set()
+
+    def validate_limit(self, event=None):
+        try:
+            val = int(self.limit_entry.get())
+            if val < 1 or val > 30:
+                raise ValueError
+        except ValueError:
+            tkinter.messagebox.showwarning("Invalid Input", "Post Limit must be between 1 and 30.")
+            self.limit_entry.delete(0, "end")
+            self.limit_entry.insert(0, "20") # Default safe value
+            # self.limit_entry.focus_set() # Avoid infinite loops
+
+    def validate_cache_days(self, event=None):
+        try:
+            val = int(self.cache_days_entry.get())
+            if val < 0:
+                raise ValueError
+        except ValueError:
+            tkinter.messagebox.showwarning("Invalid Input", "Cache Duration must be 0 or greater (integer).")
+            self.cache_days_entry.delete(0, "end")
+            self.cache_days_entry.insert(0, "7")
+
+    def validate_cache_size(self, event=None):
+        try:
+            val = int(self.cache_size_entry.get())
+            if val < 0 or val > 4096:
+                raise ValueError
+        except ValueError:
+            tkinter.messagebox.showwarning("Invalid Input", "Cache Size must be between 0 and 4096 MB.")
+            self.cache_size_entry.delete(0, "end")
+            self.cache_size_entry.insert(0, "500")
+
+    def validate_concurrency(self, event=None):
+        try:
+            val = int(self.concurrency_entry.get())
+            if val < 1 or val > 32:
+                raise ValueError
+        except ValueError:
+            tkinter.messagebox.showwarning("Invalid Input", "Concurrent Downloads must be between 1 and 32.")
+            self.concurrency_entry.delete(0, "end")
+            self.concurrency_entry.insert(0, "8")
 
     def browse_path(self):
         folder = ctk.filedialog.askdirectory()
@@ -513,7 +577,7 @@ class SettingsDialog(ctk.CTkToplevel):
         path = self.path_entry.get()
         try:
             limit = int(self.limit_entry.get())
-            if limit > 100: limit = 100
+            if limit > 30: limit = 30
             if limit < 1: limit = 1
         except:
             limit = 20
@@ -545,15 +609,32 @@ class SettingsDialog(ctk.CTkToplevel):
             if max_workers > 32: max_workers = 32
         except:
             max_workers = 8
-
         self.parent.update_settings(username, apikey, path, limit, safe_search, cache_days, cache_size, max_workers, email)
         self.destroy()
+
+import sys
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 class App(ctk.CTk):
     def __init__(self, username=None, apikey=None):
         super().__init__()
         self.title("Danbooru Downloader")
         self.geometry("1000x700")
+        try:
+            # Use ICO for Windows (Standard & Reliable)
+            icon_path = resource_path("icon.ico")
+            self.iconbitmap(icon_path)
+        except Exception as e:
+            print(f"Failed to load icon: {e}")
         
         self.toplevel_window = None
         load_dotenv()
@@ -563,13 +644,23 @@ class App(ctk.CTk):
         self.username = self.security.decrypt(os.getenv("DANBOORU_USERNAME")) or ""
         self.apikey = self.security.decrypt(os.getenv("DANBOORU_APIKEY")) or ""
         self.email = self.security.decrypt(os.getenv("DANBOORU_EMAIL")) or "unknown@example.com"
-        self.download_path = os.getenv("DANBOORU_DOWNLOAD_PATH") or os.path.join(os.getcwd(), "downloads")
+        
+        # Encrypted Path
+        encrypted_path = os.getenv("DANBOORU_DOWNLOAD_PATH")
+        decrypted_path = self.security.decrypt(encrypted_path)
+        self.download_path = decrypted_path if decrypted_path else os.path.join(os.getcwd(), "downloads")
+
         try:
             self.preview_limit = int(os.getenv("DANBOORU_PREVIEW_LIMIT", "20"))
         except:
             self.preview_limit = 20
         
-        self.safe_search = os.getenv("DANBOORU_SAFE_SEARCH", "False").lower() == "true"
+        # Encrypted Safe Search
+        encrypted_safe_search = os.getenv("DANBOORU_SAFE_SEARCH")
+        decrypted_safe_search = self.security.decrypt(encrypted_safe_search)
+        # Handle default (decrypted_safe_search might be empty if env missing)
+        safe_search_str = decrypted_safe_search if decrypted_safe_search else "False"
+        self.safe_search = safe_search_str.lower() == "true"
         
         try:
             self.cache_days = int(os.getenv("DANBOORU_CACHE_DAYS", "7"))
@@ -857,9 +948,9 @@ class App(ctk.CTk):
         if username: set_key(self.env_file, "DANBOORU_USERNAME", self.security.encrypt(username))
         if apikey: set_key(self.env_file, "DANBOORU_APIKEY", self.security.encrypt(apikey))
         if email: set_key(self.env_file, "DANBOORU_EMAIL", self.security.encrypt(email))
-        if path: set_key(self.env_file, "DANBOORU_DOWNLOAD_PATH", path)
+        if path: set_key(self.env_file, "DANBOORU_DOWNLOAD_PATH", self.security.encrypt(path))
         set_key(self.env_file, "DANBOORU_PREVIEW_LIMIT", str(limit))
-        set_key(self.env_file, "DANBOORU_SAFE_SEARCH", str(safe_search))
+        set_key(self.env_file, "DANBOORU_SAFE_SEARCH", self.security.encrypt(str(safe_search)))
         set_key(self.env_file, "DANBOORU_CACHE_DAYS", str(cache_days))
         set_key(self.env_file, "DANBOORU_CACHE_SIZE", str(cache_size))
         set_key(self.env_file, "DANBOORU_MAX_WORKERS", str(max_workers))
@@ -899,15 +990,26 @@ class App(ctk.CTk):
         if os.path.exists(self.history_file):
             try:
                 with open(self.history_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    encrypted_data = f.read()
+                    
+                    # Try decrypting (handling legacy plain JSON)
+                    try:
+                        decrypted_data = self.security.decrypt(encrypted_data)
+                        return json.loads(decrypted_data)
+                    except:
+                         # Fallback for migration: try loading as plain JSON
+                        f.seek(0)
+                        return json.load(f)
             except:
                 pass
         return []
 
     def save_history(self):
         try:
+            json_str = json.dumps(self.search_history, ensure_ascii=False, indent=2)
+            encrypted_data = self.security.encrypt(json_str)
             with open(self.history_file, 'w', encoding='utf-8') as f:
-                json.dump(self.search_history, f, ensure_ascii=False, indent=2)
+                f.write(encrypted_data)
         except Exception as e:
             print(f"Error saving history: {e}")
 
@@ -1203,7 +1305,7 @@ class App(ctk.CTk):
                  self.update_settings_confirmation_skip(True)
 
         # Query Mismatch Check (Moved from thread)
-        resume_mgr = ResumeManager(self.download_path)
+        resume_mgr = ResumeManager(self.download_path, self.security)
         stored_query = resume_mgr.get_query()
         if stored_query and stored_query.lower() != tags.lower():
             if not tkinter.messagebox.askyesno("Query Mismatch", 
@@ -1314,7 +1416,7 @@ class App(ctk.CTk):
         self.after(0, lambda: self.pause_btn.configure(state="normal"))
         self.after(0, lambda: self.cancel_btn.configure(state="normal"))
         
-        resume_mgr = ResumeManager(self.download_path)
+        resume_mgr = ResumeManager(self.download_path, self.security)
         stored_query = resume_mgr.get_query()
         saved_state = resume_mgr.get_state()
         saved_top_id = saved_state.get("top_id")

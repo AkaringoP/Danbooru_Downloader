@@ -11,6 +11,6 @@ dist/
 build/
 *.spec
 convert_icon.py
-icon.ico
 *.png
 search_history.json
+.danbooru_resume.json

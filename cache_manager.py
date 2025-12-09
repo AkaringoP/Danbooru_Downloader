@@ -2,6 +2,9 @@ import os
 import time
 import shutil
 import ctypes
+import hashlib
+from io import BytesIO
+from PIL import Image
 
 class ThumbnailCache:
     def __init__(self, cache_dir=".danbooru_cache", max_days=7, max_size_mb=500):
@@ -22,18 +25,32 @@ class ThumbnailCache:
             except Exception as e:
                 print(f"Failed to hide cache dir: {e}")
 
-    def get(self, post_id):
+    def _get_cache_path(self, post_id):
+        # Obfuscate filename with MD5
+        hash_name = hashlib.md5(str(post_id).encode()).hexdigest()
+        return os.path.join(self.cache_dir, f"{hash_name}.dat")
+
+    def load(self, post_id):
         if self.max_days == 0:
             return None
             
-        file_path = os.path.join(self.cache_dir, f"{post_id}.jpg")
+        file_path = self._get_cache_path(post_id)
         if os.path.exists(file_path):
-            # Update access time (touch)
             try:
+                # Update access time (touch)
                 os.utime(file_path, None)
-            except:
+                
+                with open(file_path, "rb") as f:
+                    data = bytearray(f.read())
+                
+                # De-obfuscate: XOR first 4 bytes
+                for i in range(min(4, len(data))):
+                    data[i] ^= 0xFF
+                    
+                return Image.open(BytesIO(data))
+            except Exception as e:
+                # print(f"Cache load error: {e}")
                 pass
-            return file_path
         return None
 
     def save(self, post_id, image_data):
@@ -41,10 +58,17 @@ class ThumbnailCache:
             return
             
         self._ensure_cache_dir()
-        file_path = os.path.join(self.cache_dir, f"{post_id}.jpg")
+        file_path = self._get_cache_path(post_id)
         try:
+            # Prepare data
+            data = bytearray(image_data.getvalue())
+            
+            # Obfuscate: XOR first 4 bytes
+            for i in range(min(4, len(data))):
+                data[i] ^= 0xFF
+                
             with open(file_path, "wb") as f:
-                f.write(image_data.getbuffer())
+                f.write(data)
         except Exception as e:
             print(f"Failed to save cache: {e}")
 

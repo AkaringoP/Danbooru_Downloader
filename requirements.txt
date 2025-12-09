@@ -4,3 +4,4 @@ pillow
 packaging
 python-dotenv
 cryptography
+keyring
