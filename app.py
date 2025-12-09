@@ -1253,7 +1253,7 @@ class App(ctk.CTk):
             return
 
         # Query Mismatch Check for Selected Download
-        resume_mgr = ResumeManager(self.download_path)
+        resume_mgr = ResumeManager(self.download_path, self.security)
         stored_query = resume_mgr.get_query()
         if stored_query and stored_query.lower() != self.current_tags.lower():
             if not tkinter.messagebox.askyesno("Query Mismatch", 
@@ -1289,7 +1289,7 @@ class App(ctk.CTk):
             return
         
         # Always fetch count for confirmation
-        count = self.api.get_post_count(tags)
+        count = self.api.get_post_counts(tags)
         if count == 0:
             tkinter.messagebox.showinfo("No Posts", "No posts found for these tags.")
             return
