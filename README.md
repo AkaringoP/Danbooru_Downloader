@@ -25,8 +25,16 @@ A modern, high-performance desktop application for searching and downloading ima
     -   Pause/Resume downloads.
     -   Direct file viewer integration.
 
-## Installation
+## 📥 Download & Installation
 
+### Option 1: Standalone Executable (Recommended)
+No Python installation required. Just download and run.
+1.  Go to the [Releases Page](https://github.com/AkaringoP/Danbooru_Downloader/releases).
+2.  Download the latest `DanbooruDownloader.zip`.
+3.  Extract the zip file.
+4.  Run `DanbooruDownloader.exe`.
+
+### Option 2: Run from Source (For Developers)
 1.  **Clone the repository**:
     ```bash
     git clone https://github.com/AkaringoP/Danbooru_Downloader.git
@@ -38,12 +46,14 @@ A modern, high-performance desktop application for searching and downloading ima
     pip install -r requirements.txt
     ```
 
-## Usage
-
-1.  **Run the application**:
+3.  **Run the application**:
     ```bash
     python app.py
     ```
+
+## Usage
+
+1.  **Start the App**: Run `DanbooruDownloader.exe` (or `python app.py` if running from source).
 
 2.  **Initial Setup**:
     -   Click **Settings** to configure your Danbooru credentials (Username, API Key).
