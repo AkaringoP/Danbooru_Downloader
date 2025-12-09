@@ -2,7 +2,7 @@
 
 A modern, high-performance desktop application for searching and downloading images from Danbooru. Built with Python and CustomTkinter.
 
-![Danbooru Downloader](https://github.com/AkaringoP/Danbooru_Downloader/assets/placeholder.png)
+<img width="600" height="438" alt="image" src="https://github.com/user-attachments/assets/8ecc259d-95c9-4128-a0c0-f64a1936907c" />
 
 ## Key Features
 
